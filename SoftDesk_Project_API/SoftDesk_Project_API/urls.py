@@ -15,20 +15,31 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
-from rest_framework import routers
+from django.urls import path
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from API.views import ProjectViewset, ContributorViewset, IssueViewset, CommentViewset
+from API.views import signup_view
+from API.views import project_get_or_create, project_handler
+from API.views import user_project_get_or_create, user_project_delete
+from API.views import issue_get_or_create, issue_handler
+from API.views import comment_get_or_create, comment_handler
 
-
-router = routers.SimpleRouter()
-router.register('project', ProjectViewset, basename='project')
-router.register('contributor', ContributorViewset, basename='contributor')
-router.register('issue', IssueViewset, basename='issue')
-router.register('comment', CommentViewset, basename='comment')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api-auth/', include('rest_framework.urls')),
-    path('api/', include(router.urls)),
+    path('signup/', signup_view, name='signup'),
+    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('projects/', project_get_or_create, name='projects'),
+    path('projects/<int:project_id>/', project_handler, name='project_handler'),
+    path('projects/<int:project_id>/users/', user_project_get_or_create, name='contributor'),
+    path('projects/<int:project_id>/users/<int:user_id>', user_project_delete, name='contributor_delete'),
+    path('projects/<int:project_id>/issues/', issue_get_or_create, name='issues'),
+    path('projects/<int:project_id>/issues/<int:issue_id>/', issue_handler, name='issue_handler'),
+    path('projects/<int:project_id>/issues/<int:issue_id>/comments/',
+         comment_get_or_create, name='comments'
+         ),
+    path('projects/<int:project_id>/issues/<int:issue_id>/comments/<int:comment_id>',
+         comment_handler, name='comment_handler'
+         ),
 ]

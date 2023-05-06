@@ -5,6 +5,7 @@ from django.conf import settings
 # Create your models here.
 class Project(models.Model):
     title = models.fields.CharField(max_length=128)
+    description = models.fields.CharField(max_length=2048, blank=True)
     TYPE_CHOICES = [
         ("Back-End", "Back-End"),
         ("Front-End", "Front-End"),
@@ -49,10 +50,12 @@ class Issue(models.Model):
         ("En cours", "En cours"),
         ("Terminé", "Terminé")
     ]
-    project_id = models.ForeignKey(to=Project, on_delete=models.CASCADE)
     status = models.CharField(max_length=128, choices=STATUS_CHOICES)
+    project_id = models.ForeignKey(to=Project, on_delete=models.CASCADE)
     author_user_id = models.ForeignKey(to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="author")
-    assignee_user_id = models.ManyToManyField(to=settings.AUTH_USER_MODEL, related_name="assignee")
+    assignee_user_id = models.ManyToManyField(to=settings.AUTH_USER_MODEL,
+                                              related_name="assignee",
+                                              )
     time_created = models.DateTimeField(auto_now_add=True)
     objects = models.Manager()
 
