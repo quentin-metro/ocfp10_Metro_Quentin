@@ -8,6 +8,7 @@ from rest_framework.response import Response
 
 from .models import Project, Contributor
 from .models import Issue, Comment
+from .permissions import IsContributor, IsAuthorContributor, IsAuthorIssue, IsAssigneeIssue, IsAuthorComment
 from .serializers import UserSerializer, ProjectSerializer, ContributorSerializer
 from .serializers import IssueSerializer, CommentSerializer
 
@@ -57,57 +58,49 @@ def project_get_or_create(request):
 
 
 @api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes((IsAuthenticated, IsContributor))
 def project_handler(request, project_id):
     user = request.user
-    contributor = get_object_or_404(Contributor, user_id=user, project_id=project_id)
-    if contributor:
-        project = Project.objects.get(id=project_id)
-        serializer = ProjectSerializer(project)
+    project = Project.objects.get(id=project_id)
+    serializer = ProjectSerializer(project)
 
-        # GET the project information
-        if request.method == 'GET':
+    contributor = Contributor.objects.get(user_id=user, project_id=project_id)
+    # GET the project information
+    if request.method == 'GET':
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # PUT Update the project
+    elif request.method == 'PUT' and contributor.role == "author":
+        new_data = {
+            'project_id': project.id,
+            'title': request.data['title'],
+            'description': request.data['description'],
+            'type': request.data['type'],
+            'author_user_id': request.data['author_user_id'],
+        }
+        test_serializer = ProjectSerializer(data=new_data)
+        if test_serializer.is_valid():
+            serializer.edit(new_data)
+            project = Project.objects.get(id=project_id)
+            serializer = ProjectSerializer(project)
             return Response(serializer.data, status=status.HTTP_200_OK)
-
-        # PUT Update the project
-        elif request.method == 'PUT' and contributor.role == "author":
-            new_data = {
-                'project_id': project.id,
-                'title': request.data['title'],
-                'description': request.data['description'],
-                'type': request.data['type'],
-                'author_user_id': request.data['author_user_id'],
-            }
-            test_serializer = ProjectSerializer(data=new_data)
-            if test_serializer.is_valid():
-                serializer.edit(new_data)
-                project = Project.objects.get(id=project_id)
-                serializer = ProjectSerializer(project)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            else:
-                return Response(test_serializer.errors, status=status.HTTP_406_NOT_ACCEPTABLE)
-
-        # DELETE the project
-        elif request.method == 'DELETE' and contributor.role == "author":
-            project.delete()
-            return Response(status=status.HTTP_200_OK)
-
         else:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+            return Response(test_serializer.errors, status=status.HTTP_406_NOT_ACCEPTABLE)
+
+    # DELETE the project
+    elif request.method == 'DELETE' and contributor.role == "author":
+        project.delete()
+        return Response(status=status.HTTP_200_OK)
 
     else:
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes((IsAuthenticated, IsContributor))
 def user_project_get_or_create(request, project_id):
-    user = request.user
-    # Check if contributor exist
-    try:
-        user_contributor = Contributor.objects.get(user_id=user, project_id=project_id)
-    except ObjectDoesNotExist:
-        return Response(status=status.HTTP_403_FORBIDDEN)
+
     # GET  list of project-associated users
     if request.method == 'GET':
         contributors_list = Contributor.objects.filter(project_id=project_id)
@@ -117,8 +110,10 @@ def user_project_get_or_create(request, project_id):
         else:
             return Response({}, status=status.HTTP_200_OK)
 
-        # POST add a user to the project
+    # POST add a user to the project
     elif request.method == 'POST':
+        user = request.user
+        user_contributor = Contributor.objects.get(user_id=user, project_id=project_id)
         # Check if user is the author project
         if user_contributor.role == "author":
             # check if project, user exists and if new_contributor not already exists
@@ -145,15 +140,8 @@ def user_project_get_or_create(request, project_id):
 
 
 @api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes((IsAuthenticated, IsAuthorContributor))
 def user_project_delete(request, project_id, user_id):
-    user = request.user
-    # Check if contributor exist and is the author
-    try:
-        Contributor.objects.get(user_id=user, project_id=project_id)
-    except ObjectDoesNotExist:
-        return Response(status=status.HTTP_403_FORBIDDEN)
-
     contributor = get_object_or_404(Contributor, user_id=user_id, project_id=project_id)
     if contributor.role == "author":
         # Can't delete the author
@@ -164,15 +152,8 @@ def user_project_delete(request, project_id, user_id):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes((IsAuthenticated, IsContributor))
 def issue_get_or_create(request, project_id):
-    # check if project and contributor exist
-    user = request.user
-    try:
-        Contributor.objects.get(user_id=user, project_id=project_id)
-    except ObjectDoesNotExist:
-        return Response(status=status.HTTP_403_FORBIDDEN)
-
     # GET list of the project issues
     if request.method == 'GET':
         get_object_or_404(Project, id=project_id)
@@ -211,14 +192,12 @@ def issue_get_or_create(request, project_id):
 
 
 @api_view(['PUT', 'DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes((IsAuthenticated, IsAuthorIssue))
 def issue_handler(request, project_id, issue_id):
     # check if issue exist for the good project and user is author of the issue
     user = request.user
-    try:
-        issue = Issue.objects.get(author_user_id=user, project_id=project_id, id=issue_id)
-    except ObjectDoesNotExist:
-        return Response(status=status.HTTP_403_FORBIDDEN)
+    issue = Issue.objects.get(author_user_id=user, project_id=project_id, id=issue_id)
+
     # PUT edit the issue
     if request.method == 'PUT':
         # add old_author in assignee if change author
@@ -256,18 +235,8 @@ def issue_handler(request, project_id, issue_id):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes((IsAuthenticated, IsAssigneeIssue))
 def comment_get_or_create(request, project_id, issue_id):
-    # check if project and contributor exist
-    user = request.user
-    try:
-        Contributor.objects.get(user_id=user, project_id=project_id)
-    except ObjectDoesNotExist:
-        return Response(status=status.HTTP_403_FORBIDDEN)
-
-    get_object_or_404(Project, id=project_id)
-    get_object_or_404(Issue, id=issue_id)
-
     # GET list of the project issues
     if request.method == 'GET':
         comments_list = Comment.objects.filter(issue_id=issue_id)
@@ -300,25 +269,14 @@ def comment_get_or_create(request, project_id, issue_id):
 
 
 @api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes((IsAuthenticated, IsAuthorComment))
 def comment_handler(request, project_id, issue_id, comment_id):
-    # check if the issue, comment , project exist and link together  and user is contributor of the project
-    user = request.user
-    try:
-        Contributor.objects.get(user_id=user, project_id=project_id)
-        Issue.objects.get(project_id=project_id, id=issue_id)
-        comment = get_object_or_404(Comment, issue_id=issue_id, id=comment_id)
-    except ObjectDoesNotExist:
-        return Response(status=status.HTTP_403_FORBIDDEN)
+    comment = Comment.objects.get(issue_id=issue_id, id=comment_id)
 
     # PUT edit the comment
     if request.method == 'GET':
-        comments = Comment.objects.get(id=comment_id)
         serializer = CommentSerializer(comment)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    elif comment.author_user_id != user:
-        return Response(status=status.HTTP_403_FORBIDDEN)
 
     # PUT edit the comment
     elif request.method == 'PUT':

@@ -2,7 +2,6 @@ from rest_framework.serializers import ModelSerializer
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
-from django.shortcuts import get_object_or_404
 
 from .models import Project, Contributor, Issue, Comment
 
@@ -183,12 +182,11 @@ class IssueSerializer(ModelSerializer):
         new_assignee_list = data['assignee_user_id']
         if new_author.id not in new_assignee_list:
             new_assignee_list.append(new_author.id)
-        project = Project.objects.get(id=data['project_id'])
 
         # edit the contributor
         for user_id in new_assignee_list:
             try:
-                contributor = Contributor.objects.get(project_id=data['project_id'], user_id=user_id)
+                Contributor.objects.get(project_id=data['project_id'], user_id=user_id)
             except ObjectDoesNotExist:
                 pass
             else:
