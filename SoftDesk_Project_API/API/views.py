@@ -58,7 +58,7 @@ def project_get_or_create(request):
 
 
 @api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes((IsAuthenticated, IsContributor))
+@permission_classes((IsAuthenticated, IsAuthorContributor))
 def project_handler(request, project_id):
     user = request.user
     project = Project.objects.get(id=project_id)
@@ -70,7 +70,7 @@ def project_handler(request, project_id):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     # PUT Update the project
-    elif request.method == 'PUT' and contributor.role == "author":
+    elif request.method == 'PUT':
         new_data = {
             'project_id': project.id,
             'title': request.data['title'],
@@ -88,12 +88,12 @@ def project_handler(request, project_id):
             return Response(test_serializer.errors, status=status.HTTP_406_NOT_ACCEPTABLE)
 
     # DELETE the project
-    elif request.method == 'DELETE' and contributor.role == "author":
+    elif request.method == 'DELETE':
         project.delete()
         return Response(status=status.HTTP_200_OK)
 
     else:
-        return Response(status=status.HTTP_403_FORBIDDEN)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -183,9 +183,8 @@ def issue_get_or_create(request, project_id):
             augmented_serializer_data['id'] = issue.id
             augmented_serializer_data['time_created'] = issue.time_created
             return Response(augmented_serializer_data, status=status.HTTP_200_OK)
-
         else:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_406_NOT_ACCEPTABLE)
 
     else:
         return Response(status=status.HTTP_400_BAD_REQUEST)
