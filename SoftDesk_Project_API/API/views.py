@@ -60,11 +60,9 @@ def project_get_or_create(request):
 @api_view(['GET', 'PUT', 'DELETE'])
 @permission_classes((IsAuthenticated, IsAuthorContributor))
 def project_handler(request, project_id):
-    user = request.user
     project = Project.objects.get(id=project_id)
     serializer = ProjectSerializer(project)
 
-    contributor = Contributor.objects.get(user_id=user, project_id=project_id)
     # GET the project information
     if request.method == 'GET':
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -156,7 +154,6 @@ def user_project_delete(request, project_id, user_id):
 def issue_get_or_create(request, project_id):
     # GET list of the project issues
     if request.method == 'GET':
-        get_object_or_404(Project, id=project_id)
         issue_list = Issue.objects.filter(project_id=project_id)
         if issue_list:
             serializer = IssueSerializer(issue_list, many=True)
@@ -209,7 +206,7 @@ def issue_handler(request, project_id, issue_id):
             'description': request.data['description'],
             'tag': request.data['tag'],
             'priority': request.data['priority'],
-            'status': "À faire",
+            'status': request.data['status'],
             'author_user_id': request.data['author_user_id'],
             'assignee_user_id': assignee_user_id_list,
             'project_id': project_id
@@ -281,7 +278,7 @@ def comment_handler(request, project_id, issue_id, comment_id):
     elif request.method == 'PUT':
         data = {
             'comment_id': comment_id,
-            'issue_id': comment_id,
+            'issue_id': issue_id,
             'description': request.data['description'],
             'author_user_id': request.data['author_user_id'],
         }
